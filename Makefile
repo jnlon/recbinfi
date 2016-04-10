@@ -1,2 +1,2 @@
 _:
-	ocamlopt unix.cmxa main.ml -o disk_get
+	ocamlopt unix.cmxa main.ml -o recbinfi
