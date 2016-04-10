@@ -50,6 +50,23 @@ let simple_find_eof (fmt: file_format) =  (*Stop when we find end of sig*)
   in loop 0
 ;;
 
+(*NOTE: Some PDFs end in \r\n, instead of just \n *)
+let pdf_find_eof (fmt: file_format ) = 
+
+  let rec scan_for_eof () = 
+    try
+      let found_sig = 
+        List.find 
+        find_sig 
+        [(fmt.sig_end @ [0x0D;0x0A]); (fmt.sig_end @ [0x0A])]
+      in
+      ((where ()) + (List.length found_sig) - 1)
+    with Not_found -> ((skip 1); (scan_for_eof ()))
+  in
+  (scan_for_eof ())
+;;
+
+
 (* The EOF of a gif is ambiguous, since its EOF is also the end of a gif frame.
  * So, we keep looking for the EOF sig even after finding one, and we only stop
  * once we pass max_size in the current frame*)
@@ -88,6 +105,16 @@ let png_format = {
   max_size = safe_max_file_size;
   num_found = ref 0;
   find_eof_fn = simple_find_eof }
+;;
+
+
+let pdf_format = {
+  filetype = "pdf";
+  sig_start = [0x25;0x50;0x44;0x46];
+  sig_end = [0x25;0x45;0x4F;0x46]; (* @ [0x0A] | [0x0D;0x0A] *)
+  max_size = safe_max_file_size;
+  num_found = ref 0;
+  find_eof_fn = pdf_find_eof }
 ;;
 
 let jpg_raw_format = {
@@ -138,6 +165,7 @@ let gif_format = {
 
 let formats = [
   png_format;
+  pdf_format;
   jpg_raw_format;
   jpg_jfif_format;
   jpg_exif_format;
@@ -169,8 +197,6 @@ let spit buf filename =
   in
   Buffer.output_buffer out_chan buf;
   close_out out_chan;
-  (*Printf.printf "Spat buf to %s (size %d)\n" 
-     filename (Buffer.length buf);*)
 ;;
 
 let buffer_of_indice i1 i2 =
@@ -213,6 +239,8 @@ try
     (*Determine where the file ends, sometimes 
      * specific to the file type (eg, GIF) *)
     let eof = (fmt.find_eof_fn fmt) in
+    (*Printf.printf "  Found start at %d\n" start;
+    Printf.printf "  Found end at %d\n" eof;*)
     let r = fmt.num_found in
     let out_filename = Printf.sprintf "%d.%s" !r fmt.filetype in
     let out_path = 
