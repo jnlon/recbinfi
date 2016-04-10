@@ -39,9 +39,9 @@ $ recbinfi abc.jpgs
 EOF
 ```
 
-Note that when using `recbinfi` for file-recovery purposes, ideal to use it
-from a path on a **seperate device**, since there is a chance that the files it
-recovers will overwrite other recoverable data on the disk.
+Note that when using `recbinfi` for file-recovery purposes, it is ideal to use
+it from a path on a **seperate device**, since there is a chance that the files
+it recovers will overwrite other recoverable data on the disk.
 
 # TODO
 
