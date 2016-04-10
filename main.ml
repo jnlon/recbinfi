@@ -2,13 +2,15 @@ let out_dir = ("output");;
 let in_chan = open_in_bin Sys.argv.(1);;
 let slash = Filename.dir_sep;;
 let safe_max_file_size = 1024*1024*10;;
+let seek time = seek_in in_chan time;;
 let next () = input_byte in_chan;;
 let where () = pos_in in_chan;;
+let rewind place = seek ((where ()) - place);;
+let peek () = let b = (input_byte in_chan) in (rewind 1); b;;
 let soi s = string_of_int s;;
 let print_int_sp i = print_int i; print_char ' ';;
 let print_int_endl i = print_int i; print_newline ();;
 let fail msg = print_endline msg; exit 1;;
-let rewind time = seek_in in_chan time;;
 let skip n = seek_in in_chan ((where ()) + n);;
 let is_true p = (p = true);;
 
@@ -23,7 +25,7 @@ let find_sig f_sig =
   in
   let start = (where ()) in
   let result = follow_sig f_sig in
-  rewind start;
+  seek start;
   result
 ;;
 
@@ -48,12 +50,10 @@ let simple_find_eof (fmt: file_format) =  (*Stop when we find end of sig*)
   in loop 0
 ;;
 
-(* The EOF of a gif is ambiguous, since its EOF is also the end of a gif frame. 
- * So, we keep looking for the EOF sig even after finding one, and we only
- * stop once we pass max_size in the current frame*)
+(* The EOF of a gif is ambiguous, since its EOF is also the end of a gif frame.
+ * So, we keep looking for the EOF sig even after finding one, and we only stop
+ * once we pass max_size in the current frame*)
 let rec gif_find_eof (fmt: file_format) =
-
-  let start = (where ()) in
 
   let rec scan_for_eof last_eof_location = 
 
@@ -83,17 +83,45 @@ let rec gif_find_eof (fmt: file_format) =
 
 let png_format = {
   filetype = "png";
-  sig_start = [137;80;78;71;13;10;26;10];
-  sig_end = [73;69;78;68;174;66;96;130];
+  sig_start = [0x89;0x50;0x4E;0x47;0xD;0xA;0x1A;0xA];
+  sig_end = [0x49;0x45;0x4E;0x44;0xAE;0x42;0x60;0x82];
   max_size = safe_max_file_size;
   num_found = ref 0;
   find_eof_fn = simple_find_eof }
 ;;
 
-let jpg_format = {
-  filetype = "jpg";
-  sig_start = [255;216;255];
-  sig_end = [255;217];
+let jpg_raw_format = {
+  filetype = "raw.jpg";
+  sig_start = [0xFF; 0xD8; 0xFF; 0xDB];
+  sig_end = [0xFF;0xD9];
+  max_size = safe_max_file_size;
+  num_found = ref 0; 
+  find_eof_fn = simple_find_eof }
+;;
+
+let jpg_profile_format = {
+  filetype = "prof.jpg";
+  sig_start = [0xFF; 0xD8; 0xFF; 0xE2; 0x0C];
+  sig_end = [0xFF;0xD9];
+  max_size = safe_max_file_size;
+  num_found = ref 0; 
+  find_eof_fn = simple_find_eof }
+;;
+
+let jpg_exif_format = {
+  filetype = "exif.jpg";
+  sig_start = [0xFF;0xD8;0xFF;0xE1];
+  sig_end = [0xFF;0xD9];
+  max_size = safe_max_file_size;
+  num_found = ref 0; 
+  find_eof_fn = simple_find_eof}
+;;
+
+let jpg_jfif_format = {
+  filetype = "jfif.jpg";
+  sig_start = [0xFF;0xD8;0xFF;0xE0;0x00;
+               0x10;0x4A;0x46;0x49;0x46];
+  sig_end = [0xFF;0xD9];
   max_size = safe_max_file_size;
   num_found = ref 0; 
   find_eof_fn = simple_find_eof }
@@ -101,8 +129,8 @@ let jpg_format = {
 
 let gif_format = {
   filetype = "gif";
-  sig_start = [71;73;70;56;57;97];
-  sig_end = [0;59];
+  sig_start = [0x47;0x49;0x46;0x38;0x39;0x61];
+  sig_end = [0x00;0x3B];
   max_size = 1024*512;
   num_found = ref 0; 
   find_eof_fn = gif_find_eof }
@@ -110,9 +138,20 @@ let gif_format = {
 
 let formats = [
   png_format;
-  jpg_format;
+  jpg_raw_format;
+  jpg_jfif_format;
+  jpg_exif_format;
+  jpg_profile_format;
   gif_format ]
 ;;
+
+let all_sig_start_hd = 
+  (List.sort_uniq compare
+    (List.map 
+    (fun f -> (List.hd f.sig_start)) 
+    formats))
+;;
+
 
 let succ_ref r = 
   r := (!r + 1)
@@ -135,7 +174,7 @@ let spit buf filename =
 ;;
 
 let buffer_of_indice i1 i2 =
-  (rewind i1);
+  (seek i1);
   let buf = Buffer.create (i2-i1)
   in
   for i=i1 to i2 do
@@ -144,7 +183,7 @@ let buffer_of_indice i1 i2 =
 ;;
 
 let () = begin  (* Make directories *)
-  let perm = 0o700 in
+  let perm = 0o777 in
   try
     Unix.mkdir out_dir perm;
     List.iter 
@@ -159,35 +198,36 @@ try
   while true do 
     (*Determine where the file starts, and its format *)
     let start,fmt = 
+      let find_format_sig f = find_sig f.sig_start in
       let rec loop () =
+        let this_byte = (peek ()) in
+        let byte_in_a_sig () = (List.mem this_byte all_sig_start_hd) in
         try
-          let f = (List.find (fun f -> find_sig f.sig_start) formats) in
+          if (byte_in_a_sig ()) then () else raise Not_found;
+          let f = (List.find find_format_sig formats) in
           (where ()), f
         with Not_found -> (skip 1; loop ())
       in loop ()
     in
 
-    Printf.printf "Found start: %d\n" start;
-
-    (*Determine where the file ends, 
-     *sometimes specific to each file type*)
-    let eof = (fmt.find_eof_fn fmt) 
-    in
-
+    (*Determine where the file ends, sometimes 
+     * specific to the file type (eg, GIF) *)
+    let eof = (fmt.find_eof_fn fmt) in
     let r = fmt.num_found in
-    let out_filename = 
-      (Printf.sprintf "%s%s%s%s%d.%s" 
-       out_dir slash fmt.filetype slash !r fmt.filetype) 
+    let out_filename = Printf.sprintf "%d.%s" !r fmt.filetype in
+    let out_path = 
+      (Printf.sprintf "%s%s%s%s%s" 
+       out_dir slash fmt.filetype slash out_filename) 
     in
 
     if eof != -1 then begin
       succ_ref (fmt.num_found);
-      spit (buffer_of_indice start eof) out_filename;
-      Printf.printf "'%d.%s' saved (%d - %d = %d bytes) \n" 
-        !r fmt.filetype eof start (eof - start);
-      rewind eof;
+      spit (buffer_of_indice start eof) out_path;
+      Printf.printf "%-20s (%d KB)\n" 
+        out_filename ((eof - start)/1024);
+      seek eof;
       flush stdout;
-    end else (rewind (start + 1));
+    end else (seek (start + 1));
 
   done
 with End_of_file -> print_endline "EOF"
