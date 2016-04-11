@@ -14,7 +14,6 @@ device. `recbinfi` can search it like so:
 
 ```
 $ recbinfi /dev/sda
-
 ```
 
 A new directory `output` will be created in your current path, and any files it
@@ -40,12 +39,12 @@ EOF
 ```
 
 Note that when using `recbinfi` for file-recovery purposes, it is ideal to use
-it from a path on a **seperate device**, since there is a chance that the files
+it from a path on a **separate device**, since there is a chance that the files
 it recovers will overwrite other recoverable data on the disk.
 
 ### Caveats
 
-- PDF files with more than one EOF marker will likely no be recovered correctly. See [this StackOverflow post](http://stackoverflow.com/questions/11896858/does-the-eof-in-a-pdf-have-to-appear-within-the-last-1024-bytes-of-the-file/29489874#29489874).
+- PDF files with more than one EOF marker will probably not be recovered correctly. See [this StackOverflow post](http://stackoverflow.com/questions/11896858/does-the-eof-in-a-pdf-have-to-appear-within-the-last-1024-bytes-of-the-file/29489874#29489874).
 
 # TODO
 
