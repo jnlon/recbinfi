@@ -52,5 +52,4 @@ it recovers will overwrite other recoverable data on the disk.
 - Add a proper commandline interface (options, help, version...)
 - Add support for more formats (zip, media files,  ...)
 - Separate file formats into their own file
-- More reliability testing
 - Put all JPG types into one output directory
