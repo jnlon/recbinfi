@@ -1,7 +1,9 @@
-let out_dir = ("output");;
-let in_chan = open_in_bin Sys.argv.(1);;
+let multi_max_file_size = (1024*768)*2;;
+let simple_max_file_size = 1024*1024*10;;
 let slash = Filename.dir_sep;;
-let safe_max_file_size = 1024*1024*10;;
+let out_dir = ("output");;
+
+let in_chan = open_in_bin Sys.argv.(1);;
 let seek time = seek_in in_chan time;;
 let next () = input_byte in_chan;;
 let where () = pos_in in_chan;;
@@ -52,7 +54,6 @@ let simple_find_eof (fmt: file_format) =  (*Stop when we find end of sig*)
 
 (*NOTE: Some PDFs end in \r\n, instead of just \n *)
 let pdf_find_eof (fmt: file_format ) = 
-
   let rec scan_for_eof () = 
     try
       let found_sig = 
@@ -67,10 +68,10 @@ let pdf_find_eof (fmt: file_format ) =
 ;;
 
 
-(* The EOF of a gif is ambiguous, since its EOF is also the end of a gif frame.
- * So, we keep looking for the EOF sig even after finding one, and we only stop
- * once we pass max_size in the current frame*)
-let rec gif_find_eof (fmt: file_format) =
+(* The EOF of some filetypes (such as GIF) is ambiguous, since the EOF
+ * signature may occur several times in the same file. So, we keep looking for
+ * the EOF sig even after finding one, and we only stop once we pass max_size*)
+let rec multi_find_eof (fmt: file_format) =
 
   let rec scan_for_eof last_eof_location = 
 
@@ -79,14 +80,14 @@ let rec gif_find_eof (fmt: file_format) =
 
     let start_frame = (where()) 
     in
-    let within_gif_bounds () = 
+    let havent_gone_too_far () = 
       ((where ()) - start_frame) < fmt.max_size
     in
-    while (within_gif_bounds ()) && (not (find_sig fmt.sig_end))
+    while (havent_gone_too_far ()) && (not (find_sig fmt.sig_end))
     do (skip 1)
     done;
 
-    if (within_gif_bounds ()) then begin
+    if (havent_gone_too_far ()) then begin
       let eof_location = ((where ()) + (List.length fmt.sig_end) - 1) in
       (skip 1);
       try
@@ -102,7 +103,7 @@ let png_format = {
   filetype = "png";
   sig_start = [0x89;0x50;0x4E;0x47;0xD;0xA;0x1A;0xA];
   sig_end = [0x49;0x45;0x4E;0x44;0xAE;0x42;0x60;0x82];
-  max_size = safe_max_file_size;
+  max_size = simple_max_file_size;
   num_found = ref 0;
   find_eof_fn = simple_find_eof }
 ;;
@@ -112,55 +113,55 @@ let pdf_format = {
   filetype = "pdf";
   sig_start = [0x25;0x50;0x44;0x46];
   sig_end = [0x25;0x45;0x4F;0x46]; (* @ [0x0A] | [0x0D;0x0A] *)
-  max_size = safe_max_file_size;
+  max_size = simple_max_file_size;
   num_found = ref 0;
   find_eof_fn = pdf_find_eof }
 ;;
 
 let jpg_raw_format = {
-  filetype = "raw.jpg";
+  filetype = "jpg";
   sig_start = [0xFF; 0xD8; 0xFF; 0xDB];
   sig_end = [0xFF;0xD9];
-  max_size = safe_max_file_size;
+  max_size = multi_max_file_size;
   num_found = ref 0; 
-  find_eof_fn = simple_find_eof }
+  find_eof_fn = multi_find_eof }
 ;;
 
 let jpg_profile_format = {
   filetype = "prof.jpg";
   sig_start = [0xFF; 0xD8; 0xFF; 0xE2; 0x0C];
   sig_end = [0xFF;0xD9];
-  max_size = safe_max_file_size;
-  num_found = ref 0; 
-  find_eof_fn = simple_find_eof }
+  max_size = multi_max_file_size;
+  num_found = jpg_raw_format.num_found;
+  find_eof_fn = multi_find_eof }
 ;;
 
 let jpg_exif_format = {
-  filetype = "exif.jpg";
+  filetype = "jpg";
   sig_start = [0xFF;0xD8;0xFF;0xE1];
   sig_end = [0xFF;0xD9];
-  max_size = safe_max_file_size;
-  num_found = ref 0; 
-  find_eof_fn = simple_find_eof}
+  max_size = multi_max_file_size;
+  num_found = jpg_raw_format.num_found;
+  find_eof_fn = multi_find_eof}
 ;;
 
 let jpg_jfif_format = {
-  filetype = "jfif.jpg";
+  filetype = "jpg";
   sig_start = [0xFF;0xD8;0xFF;0xE0;0x00;
                0x10;0x4A;0x46;0x49;0x46];
   sig_end = [0xFF;0xD9];
-  max_size = safe_max_file_size;
-  num_found = ref 0; 
-  find_eof_fn = simple_find_eof }
+  max_size = multi_max_file_size;
+  num_found = jpg_raw_format.num_found;
+  find_eof_fn = multi_find_eof}
 ;;
 
 let gif_format = {
   filetype = "gif";
   sig_start = [0x47;0x49;0x46;0x38;0x39;0x61];
   sig_end = [0x00;0x3B];
-  max_size = 1024*512;
+  max_size = multi_max_file_size;
   num_found = ref 0; 
-  find_eof_fn = gif_find_eof }
+  find_eof_fn = multi_find_eof}
 ;;
 
 let formats = [
@@ -236,11 +237,12 @@ try
       in loop ()
     in
 
+    print_endline "Looking for eof now...";
+    print_endline fmt.filetype;
+
     (*Determine where the file ends, sometimes 
      * specific to the file type (eg, GIF) *)
     let eof = (fmt.find_eof_fn fmt) in
-    (*Printf.printf "  Found start at %d\n" start;
-    Printf.printf "  Found end at %d\n" eof;*)
     let r = fmt.num_found in
     let out_filename = Printf.sprintf "%d.%s" !r fmt.filetype in
     let out_path = 
@@ -251,8 +253,8 @@ try
     if eof != -1 then begin
       succ_ref (fmt.num_found);
       spit (buffer_of_indice start eof) out_path;
-      Printf.printf "%-20s (%d KB)\n" 
-        out_filename ((eof - start)/1024);
+      Printf.printf "%-7s %+5d KB (0x%X - 0x%X)\n" 
+        out_filename ((eof - start)/1024) start eof;
       seek eof;
       flush stdout;
     end else (seek (start + 1));
