@@ -235,17 +235,19 @@ let buffer_of_indice i1 i2 =
   done; buf
 ;;
 
-let () = begin  (* Make directories *)
+let () = 
   let perm = 0o777 in
-  try
-    Unix.mkdir out_dir perm;
-    List.iter 
+    try
+      Unix.mkdir out_dir perm;
+    with e -> ();
+    (List.iter 
       (fun f -> 
-        Unix.mkdir (Printf.sprintf "%s%s%s" 
+        (try 
+          (Unix.mkdir (Printf.sprintf "%s%s%s" 
                   out_dir slash f.filetype) perm)
+        with e -> ())))
       formats
-  with e -> ()
-end;
+in
 
 try 
   while true do 
