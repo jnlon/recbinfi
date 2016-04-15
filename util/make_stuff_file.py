@@ -29,13 +29,16 @@ def get_stuff(max_stuff_size):
 
 def append_file(outfile, path):
     print("Appending {} KB from file '{}'".format(os.stat(path).st_size, os.path.basename(path)))
-    with open(path, "rb") as infile:
-        while True:
-            b = infile.read(1024)
-            if b == b'':
-                break
-            outfile.write(b)
-    outfile.flush()
+    try: 
+        with open(path, "rb") as infile:
+            while True:
+                b = infile.read(1024)
+                if b == b'':
+                    break
+                outfile.write(b)
+        outfile.flush()
+    except OSError:
+        print("Problem opening '{}'".format(path), file=sys.stderr)
 
 def append_stuff(outfile, max_stuff, random_stuff):
     bytes_to_add = random.randint(0, max_stuff)
