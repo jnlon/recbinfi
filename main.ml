@@ -235,18 +235,20 @@ let buffer_of_indice i1 i2 =
   done; buf
 ;;
 
+let perm = 0o777 in
 let () = 
-  let perm = 0o777 in
-    try
-      Unix.mkdir out_dir perm;
-    with e -> ();
-    (List.iter 
-      (fun f -> 
-        (try 
-          (Unix.mkdir (Printf.sprintf "%s%s%s" 
-                  out_dir slash f.filetype) perm)
-        with e -> ())))
-      formats
+  try
+    Unix.mkdir out_dir perm;
+  with e -> ()
+in
+let () = 
+  (List.iter 
+    (fun f -> 
+      (try 
+        (Unix.mkdir (Printf.sprintf "%s%s%s" 
+                out_dir slash f.filetype) perm)
+      with e -> ())))
+    formats
 in
 
 try 
