@@ -1,7 +1,7 @@
 # recbinfi
 `recbinfi` is a program that undeletes binary files based on their [file
 signatures](https://en.wikipedia.org/wiki/List_of_file_signatures). Currently,
-it is capable of recovering JPG, GIF, PNG, and PDF file types.  Support for more
+it is capable of recovering JPG, GIF, PNG, ZIP, and PDF file types.  Support for more
 file types is coming!
 
 # Usage
@@ -50,6 +50,6 @@ it recovers will overwrite other recoverable data on the disk.
 
 - Switching on/off file formats for flexibility/performance 
 - Add a proper commandline interface (options, help, version...)
-- Add support for more formats (zip, media files,  ...)
+- Add support for more formats (media files?)
 - Separate file formats into their own file
 - Put all JPG types into one output directory

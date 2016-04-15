@@ -52,6 +52,23 @@ let simple_find_eof (fmt: file_format) =  (*Stop when we find end of sig*)
   in loop 0
 ;;
 
+(*ZIP files have a "central directory" near the end of the file. 
+  20 bytes after the central dirctory is a two byte value indicating the length
+  of the comment field, which is also how many bytes left to EOF *)
+let zip_find_eof (fmt: file_format ) = 
+  let rec scan_for_eof () = 
+    if (find_sig fmt.sig_end) then 
+    begin
+      (skip (20)); (*Skip to central directory*)
+      let s1,s2 = (next ()),(next ()) in
+      let comment_length = ((s1 lsl 8) lor s2) in
+      (where ()) + (comment_length-1)
+    end
+    else (skip 1; scan_for_eof ())
+  in
+  (scan_for_eof ())
+;;
+
 (*NOTE: Some PDFs end in \r\n, instead of just \n *)
 let pdf_find_eof (fmt: file_format ) = 
   let rec scan_for_eof () = 
@@ -108,6 +125,14 @@ let png_format = {
   find_eof_fn = simple_find_eof }
 ;;
 
+let zip_format = {
+  filetype = "zip";
+  sig_start = [0x50; 0x4B; 0x03; 0x04];
+  sig_end = [0x50; 0x4B; 0x05; 0x06]; (*Central directory signature*)
+  max_size = simple_max_file_size;
+  num_found = ref 0;
+  find_eof_fn = zip_find_eof }
+;;
 
 let pdf_format = {
   filetype = "pdf";
@@ -128,7 +153,7 @@ let jpg_raw_format = {
 ;;
 
 let jpg_profile_format = {
-  filetype = "prof.jpg";
+  filetype = "jpg";
   sig_start = [0xFF; 0xD8; 0xFF; 0xE2; 0x0C];
   sig_end = [0xFF;0xD9];
   max_size = multi_max_file_size;
@@ -165,6 +190,7 @@ let gif_format = {
 ;;
 
 let formats = [
+  zip_format;
   png_format;
   pdf_format;
   jpg_raw_format;
@@ -237,8 +263,8 @@ try
       in loop ()
     in
 
-    print_endline "Looking for eof now...";
-    print_endline fmt.filetype;
+    (*print_endline "Looking for eof now...";
+    print_endline fmt.filetype;*)
 
     (*Determine where the file ends, sometimes 
      * specific to the file type (eg, GIF) *)
