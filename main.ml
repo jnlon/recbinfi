@@ -100,16 +100,14 @@ let pdf_find_eof (fmt: file_format) =
  * the EOF sig even after finding one, and we only stop once we pass max_size*)
 let rec multi_find_eof (fmt: file_format) =
 
+  let start = (where()) 
+  in
+  let havent_gone_too_far () = 
+    ((where ()) - start) < fmt.max_size
+  in
+
   let rec scan_for_eof last_eof_location = 
 
-    (*Printf.printf "last_eof: %d\n" last_eof_location;
-    flush stdout;*)
-
-    let start_frame = (where()) 
-    in
-    let havent_gone_too_far () = 
-      ((where ()) - start_frame) < fmt.max_size
-    in
     while (havent_gone_too_far ()) && (not (find_sig fmt.sig_end))
     do (skip 1)
     done;
