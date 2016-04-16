@@ -56,6 +56,7 @@ let simple_find_eof (fmt: file_format) =  (*Stop when we find end of sig*)
   20 bytes after the central dirctory is a two byte value indicating the length
   of the comment field, which is also how many bytes left to EOF *)
 let zip_find_eof (fmt: file_format ) = 
+  let started = (where ()) in
   let rec scan_for_eof () = 
     if (find_sig fmt.sig_end) then 
     begin
@@ -64,24 +65,33 @@ let zip_find_eof (fmt: file_format ) =
       let comment_length = ((s1 lsl 8) lor s2) in
       (where ()) + (comment_length-1)
     end
+    else if ((where ()) - started) < fmt.max_size then -1
     else (skip 1; scan_for_eof ())
   in
   (scan_for_eof ())
 ;;
 
 (*NOTE: Some PDFs end in \r\n, instead of just \n *)
-let pdf_find_eof (fmt: file_format ) = 
-  let rec scan_for_eof () = 
+let pdf_find_eof (fmt: file_format) = 
+  let started = (where ()) in
+  let rec scan_for_eof last_found_eof = 
     try
       let found_sig = 
         List.find 
         find_sig 
         [(fmt.sig_end @ [0x0D;0x0A]); (fmt.sig_end @ [0x0A])]
       in
-      ((where ()) + (List.length found_sig) - 1)
-    with Not_found -> ((skip 1); (scan_for_eof ()))
+      let new_eof = ((where ()) + (List.length found_sig) - 1)
+      in
+      (skip 1);
+      scan_for_eof new_eof
+    with Not_found -> begin
+      if ((where ()) - started) < fmt.max_size 
+      then ((skip 1); (scan_for_eof last_found_eof))
+      else last_found_eof
+    end
   in
-  (scan_for_eof ())
+  (scan_for_eof (-1))
 ;;
 
 
@@ -138,7 +148,7 @@ let pdf_format = {
   filetype = "pdf";
   sig_start = [0x25;0x50;0x44;0x46];
   sig_end = [0x25;0x45;0x4F;0x46]; (* @ [0x0A] | [0x0D;0x0A] *)
-  max_size = simple_max_file_size;
+  max_size = 1024*1024*15;
   num_found = ref 0;
   find_eof_fn = pdf_find_eof }
 ;;
