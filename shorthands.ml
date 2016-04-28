@@ -1,0 +1,12 @@
+let in_chan = open_in_bin Sys.argv.(1);;
+let seek time = seek_in in_chan time;;
+let next () = input_byte in_chan;;
+let where () = pos_in in_chan;;
+let rewind place = seek ((where ()) - place);;
+let peek () = let b = (input_byte in_chan) in (rewind 1); b;;
+let soi s = string_of_int s;;
+let print_int_sp i = print_int i; print_char ' ';;
+let print_int_endl i = print_int i; print_newline ();;
+let fail msg = print_endline msg; exit 1;;
+let skip n = seek_in in_chan ((where ()) + n);;
+let is_true p = (p = true);;
